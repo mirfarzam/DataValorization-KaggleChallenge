@@ -1,52 +1,23 @@
 ---
 title: "Customer Revenue Analysis"
 author:
-  - Farzam
-  - Juan
-  - Lin
-  - Thomas
+  - Farzam, Juan, Lin, Thomas
   - EIT Digital
 
 date: March 22, 2020
 output:
   prettydoc::html_pretty:
-    theme: leonids
+    theme: architect
     highlight: github
 ---
 
 # 1.Introduction
 
-The 80/20 rule has proven true for many businesses: only a small percentage of customers produce most of the revenue. As such, marketing teams are challenged to make appropriate investments in promotional strategies.
-
 In this Google Merchandise Store (also known as GStore, where Google swag is sold) data set, we are required to analyze a customer dataset to predict revenue per customer. Hopefully, the outcome will be more actionable operational changes and a better use of marketing budgets for those companies who choose to use data analysis on top of GA data.
 
 ![](https://storage.googleapis.com/kaggle-media/competitions/RStudio/google_store.jpg)
 
-
-## 1.1. Data Fields
-
-First, let's look at what information our data captures. By using knitr and kableExtra , we can generate more beautiful html table.
-
-```{r, echo = FALSE}
-# build a knitr table
-library(knitr)
-library(kableExtra)
-
-show <- function(table) {
-  kable_styling(kable(table, digits = getOption("digits"), caption="Data Fields"),
-                font_size = 12)
-}
-
-name <- c("fullVisitorId", "channelGrouping", "date", "device" , "geoNetwork", "socialEngagementType", "totals", "trafficSource", "visitId", "visitNumber", "visitStartTime", "hits", "customDimensions")
-
-des <- c("A unique identifier for each user of the Google Merchandise Store.","The channel via which the user came to the Store.", "The date on which the user visited the Store.", "The specifications for the device used to access the Store.", "This section contains information about the geography of the user.", "Engagement type, either 'Socially Engaged' or 'Not Socially Engaged'.", "This section contains aggregate values across the session.", "This section contains information about the Traffic Source from which the session originated.", "An identifier for this session. This is part of the value usually stored as the _utmb cookie. This is only unique to the user. For a completely unique ID, you should use a combination of fullVisitorId and visitId.", "The session number for this user. If this is the first session, then this is set to 1.", "The timestamp (expressed as POSIX time).", "This row and nested fields are populated for any and all types of hits. Provides a record of all page visits.", "This section contains any user-level or session-level custom dimensions that are set for a session. This is a repeated field and has an entry for each dimension that is set.")
-description <- data.frame(name, des)
-
-show(description)
-```
-
-
-## 1.2.Goal
+## 1.1.Goal
 
 *What are we predicting?*
 
@@ -59,11 +30,31 @@ $$target_{user} = \ln({y_{user}+1})$$
 
 
 
+## 1.2. Data Fields
+
+First, let's look at what information our data captures. By using knitr and kableExtra packages, we can generate more beautiful html table(see function show).
 
 
-# 2.Preprocessing
 
-## 2.1.Libraries
+```{r}
+# build a knitr table
+library(knitr)
+library(kableExtra)
+
+show <- function(table, caption = "Data Fields") {
+  kable_styling(kable(table, digits = getOption("digits"), caption=caption),
+                font_size = 12)
+}
+
+name <- c("fullVisitorId", "channelGrouping", "date", "device" , "geoNetwork", "socialEngagementType", "totals", "trafficSource", "visitId", "visitNumber", "visitStartTime", "hits", "customDimensions")
+
+description <- c("A unique identifier for each user of the Google Merchandise Store.","The channel via which the user came to the Store.", "The date on which the user visited the Store.", "The specifications for the device used to access the Store.", "This section contains information about the geography of the user.", "Engagement type, either 'Socially Engaged' or 'Not Socially Engaged'.", "This section contains aggregate values across the session.", "This section contains information about the Traffic Source from which the session originated.", "An identifier for this session. This is part of the value usually stored as the _utmb cookie. This is only unique to the user. For a completely unique ID, you should use a combination of fullVisitorId and visitId.", "The session number for this user. If this is the first session, then this is set to 1.", "The timestamp (expressed as POSIX time).", "This row and nested fields are populated for any and all types of hits. Provides a record of all page visits.", "This section contains any user-level or session-level custom dimensions that are set for a session. This is a repeated field and has an entry for each dimension that is set.")
+data.field <- data.frame(name, description)
+
+show(data.field)
+```
+
+## 1.3.Libraries
 
 - [data.table](https://cran.r-project.org/web/packages/data.table/)
 - [jsonlite](https://cran.r-project.org/web/packages/jsonlite/)
@@ -81,24 +72,27 @@ $$target_{user} = \ln({y_{user}+1})$$
 - [knitr](https://cran.r-project.org/web/packages/knitr/)
 - [grid](https://cran.r-project.org/web/packages/grid/)
 - [patchwork](https://cran.r-project.org/web/packages/patchwork/)
+- [ggcorrplot](https://cran.r-project.org/web/packages/ggcorrplot/)
 
-It is a function that can automatically check missing packages and install them.
+check.packages is a function that can automatically check missing packages and install them.
 
-```{r, include=FALSE}
+```{r, message=FALSE, warning=FALSE}
 # Check if libraries have been installed. If not, automatically install them
-ipak <- function(pkg){
+check.packages <- function(pkg){
   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
   if (length(new.pkg)) 
     install.packages(new.pkg, dependencies = TRUE)
-  sapply(pkg, require, character.only = TRUE)
+  . <- sapply(pkg, require, character.only = TRUE)
 }
 
-list.of.packages <- c("readr","jsonlite", "data.table", "ggplot2","tidyr", "magrittr", "lubridate", "purrr", "gridExtra", "countrycode", "highcharter", "ggExtra", "dplyr", "kableExtra","knitr", "grid", "patchwork")
-ipak(list.of.packages)
+list.of.packages <- c("readr","jsonlite", "data.table", "ggplot2","tidyr", "magrittr", "lubridate", "purrr", "gridExtra", "countrycode", "highcharter", "ggExtra", "dplyr", "kableExtra","knitr", "grid", "patchwork","ggcorrplot")
+check.packages(list.of.packages) 
 ```
 
 
-## 2.2.Load data and have a glimpse 
+# 2.Preprocessing
+
+## 2.1.Load data and have a glimpse 
 
 
 ```{r}
@@ -110,7 +104,8 @@ show(head(train_data, 1))
 Here is one row of our data, and several of the columns(e.g. device, geographical and traffic information) in the data set contain json. They contain mutiple information in one feature, so we need a way to parse this into several columns. 
 
 ```{r, echo=FALSE}
-train_data <- train_data[0:5000,]
+# train_data <- train_data[0:5000,]
+# uncomment this if you want to generate webpage faster!
 ```
 
 ```{r}
@@ -123,7 +118,7 @@ Besides, some data type is not accurate(e.g. in date column, we get numeric type
 
 ## 2.3.Cast data type
 
-First, date information here is a numeric type, we need to convert them into type *date.time*, which is a build-in date type in R. 
+First, date information here is a numeric type, we need to convert them into type date.time, which is a build-in date type in R. 
 
 ```{r}
 # convert date column from character to Date class
@@ -135,7 +130,7 @@ train_data$visitStartTime <- as_datetime(train_data$visitStartTime)
 
 ## 2.4.Deserialize json-like feature
 
-By using `jsonlite` library, we can parse and split json format feature to what we want.^[https://www.kaggle.com/mrlong/r-flatten-json-columns-to-make-single-data-frame
+By using jsonlite library, we can parse and split json format feature to what we want.^[https://www.kaggle.com/mrlong/r-flatten-json-columns-to-make-single-data-frame
 ]
 
 ```{r}
@@ -150,14 +145,10 @@ train_data <- cbind(train_data, tr_device, tr_geoNetwork, tr_totals,
 # drop the old json columns
 train_data[, c('device', 'geoNetwork', 'totals', 'trafficSource') := NULL]
 
-
-show(head(train_data, 1))
 ```
 
-Now, it becomes readable for us and analyzable for R language.
 
-
-## 2.3.Missing value process
+## 2.3.Preprocessing missing value
 
 First, we set all unknown value to build-in type *NA*. Some of the newly parsed columns from json have various values that can be converted to NA. This includes values such as ‘(not set)’ and ‘not available in demo dataset’. Although distinguishing between these values may be useful during modeling, we are going to convert them all to NA for the purposes of visualization.
 
@@ -173,7 +164,7 @@ for(col in names(train_data))
 ```
 
 
-Several of the columns newly parsed from json have only 1 unique value, e.g. ‘not available in demo dataset’. These columns are obviously useless, so we drop them here.
+Several of the columns newly parsed from json have only 1 unique value, e.g. ‘not available in demo dataset’. These columns are useless, so we drop them here.
 
 ```{r}
 # get number of unique values in each column
@@ -182,7 +173,7 @@ unique <- sapply(train_data, function(x) { length(unique(x[!is.na(x)])) })
 # subset to == 1
 one_val <- names(unique[unique <= 1])
 
-# but keep bounces and newVisits
+# but keep bounces and newVisits(they are only recorded one time, so only `1` and NA)
 one_val = setdiff(one_val, c('bounces', 'newVisits'))
 
 # drop columns from train_data
@@ -190,7 +181,7 @@ train_data[, (one_val) := NULL]
 ```
 
 
-All of the columns that were converted from json are of class character. For some, we will need to change them to numeric by using *data.table* operation.^[https://stackoverflow.com/questions/38828529/how-to-make-specific-columns-as-numeric-in-rs-data-table-and-keep-the-rest-as-i]
+All of the columns that were converted from json are of class character. For some, we will need to change them to numeric by using data.table operation.^[https://stackoverflow.com/questions/38828529/how-to-make-specific-columns-as-numeric-in-rs-data-table-and-keep-the-rest-as-i]
 
 
 ```{r}
@@ -202,16 +193,21 @@ num_cols <- c('hits', 'pageviews', 'bounces', 'newVisits',
 train_data[, (num_cols) := lapply(.SD, as.numeric), .SDcols=num_cols]
 ```
 
+Let's see our final result.
+```{r}
+show(head(train_data, 1))
+```
 
-For get better visualization, we convert *transactionRevenue* back to unit dollars. 
+Now, it becomes readable for us and analyzable for R language.
+
+## 2.4.Missing data visualization
+
+For get better visualization, we convert transactionRevenue back to unit dollars. 
 
 ```{r}
 # Divide transactionRevenue by 1,000,000
 train_data[, transactionRevenue := transactionRevenue / 1e+06]
 ```
-
-
-## 2.4.Missing data visualization
 
 ```{r,fig.width=5,fig.height=5,dpi=200}
 # Cleveland plot
@@ -253,7 +249,7 @@ geom_bar(stat = 'identity', fill = 'steelblue') +
 p2
 ```
 
-# Data Exploration
+# 3.Data Exploration
 
 What is the time range over which these data were collected?
 
@@ -271,28 +267,62 @@ rev_range <- round(range(train_data$transactionRevenue, na.rm=TRUE), 2)
 print(rev_range)
 ```
 
+## 3.1.Statictical distribution of Revenue
+
 Now let’s look at the distribution of revenue from individual visits. Here I am using the log of transaction revenue to better display the distribution.
 
+
+According to the chart, the distribution of each user's revenue is extremely skewed. Then we employ Shapiro–Wilk test on it to test whether the user's revenue are normally distributed. Apparently, it refuse the null hypothesis that the sample are came from normally distributed population.
+
+```{r,fig.width=5,fig.height=5,dpi=200, warning=FALSE}
+meanNotLog <- mean(train_data$transactionRevenue, na.rm=TRUE)
+
+# groupby fullVisitorId and calculate the revenue sum
+gdf = train_data[, .(rev = sum(transactionRevenue)), fullVisitorId]
+set(gdf, i=which(is.na(gdf[["rev"]])), j="rev", value=0)
+gdf = gdf[order(rev)]
+
+gdf %>%
+  ggplot(aes(x = c(1:length(rev)), y = rev)) +
+  geom_point(size = 2, color = "grey20", alpha=0.5) +
+  scale_y_continuous(label = scales::dollar) + 
+  labs( x = 'Index',
+        y = 'Revenue (000$)',
+        title = 'Total revenue on each customer') +
+  theme_minimal()
+
+revenue_by_userId = gdf$rev
+shapiro.test(sample(revenue_by_userId)[1:5000])
+# sample size in shapiro.test function should between 3 and 5000
+# and revenue_by_userId is sorted, so we need to obtain 5000 of them randomly
+```
+
+The log transformation is one of the most popular among the different types of transformations used to transform skewed data to approximately conform to normality. It is widely used in financial data. Now, we try it on our data.
 
 ```{r,fig.width=5,fig.height=5,dpi=200}
 meanRev <- mean(log(train_data$transactionRevenue), na.rm=TRUE)
 train_data %>% 
   ggplot(aes(x=log(transactionRevenue), y=..density..)) + 
-  geom_histogram(fill='steelblue', na.rm=TRUE, bins=40) + 
-  geom_density(aes(x=log(transactionRevenue)), fill='#69b3a2', color='lightgray', alpha=0.3, na.rm=TRUE) + 
+  geom_histogram(fill='steelblue', na.rm=TRUE, bins=10) + 
+  geom_density(aes(x=log(transactionRevenue)), fill='lightgrey', color='grey40', alpha=0.3, na.rm=TRUE) + 
   geom_vline(xintercept = meanRev, size = .5, colour = "gray30", linetype = "dashed") +
-  annotate(geom="text", x=meanRev+0.5, y=.025, label=paste("Mean: ",round(meanRev,3)), colour = "gray30") +
+  annotate(geom="text", x=meanRev+0.7, y=.025, label=paste("Mean: ",round(meanRev,3)), colour = "white") +
   labs( title = 'Distribution of transaction revenue',
-    x = 'Natural log of transaction revenue'
-  ) + theme_minimal()
-  
+        x = 'Natural log of transaction revenue') + 
+  theme_minimal()
+
+log_revenue_by_userId = log(train_data$transactionRevenue)
+shapiro.test(sample(log_revenue_by_userId)[1:5000])
+
 ```
 
-The mean of the natural log of transaction revenue appears to be around 4 and is approximately normally distributed.
+The mean of the natural log of transaction revenue appears to be around 4 and is shown a beautiful bell-shaped curve. Then, we try Shapiro–Wilk test on it, and result is greater than 0.1 or 0.05. We now can believe these log-transformed data was generated from normally distributed population, and employ linear regression model on it in the future.
+
+## 3.2.Revenue in different 
 
 Now let’s take a look at daily revenue over the time period of the data set.
 
-```{r, include=FALSE,fig.width=6,fig.height=8,dpi=200}
+```{r, message= FALSE,warning=FALSE,fig.width=6,fig.height=8,dpi=200}
 g1 <- train_data[, .(n = .N), by=date] %>%
   ggplot(aes(x=date, y=n)) + 
   geom_point(color="cornflowerblue",  size = 2,  alpha = .6) +
@@ -319,8 +349,9 @@ g1 / g2
 
 The daily revenue data are pretty volatile, but there appears to be a regular pattern here. There seems to be a regular pattern of highs and lows. We’ll have to take a closer look at this. The smoothing line indicates that daily revenue, fluctuations aside, has remained fairly steady over the course of the year.
 
-Now let’s look at revenue by hour of day.
-```{r,include=FALSE,fig.width=6,fig.height=6,dpi=200}
+
+Now we look at revenue by hour of day.
+```{r, message= FALSE,warning=FALSE,fig.width=6,fig.height=6,dpi=200}
 g1 <-
   train_data[, .(visitHour = hour(visitStartTime))][ , .(visits = .N), by = visitHour] %>%
   ggplot(aes(x = visitHour, y = visits / 1000)) +
@@ -345,10 +376,13 @@ g2 <- train_data[, .(transactionRevenue, visitHour = hour(visitStartTime))][, .(
 grid.arrange(g1, g2, nrow = 2)
 ```
 
-Now let’s look at transaction revenue grouped by channel, which is the way in which the user came to the Google Merchandise Store.
+
+## 3.3. Revenue by channel
+
+Let’s look at transaction revenue grouped by channel, which is the way in which the user came to the Google Merchandise Store.
 
 
-```{r,fig.width=10,fig.height=10,dpi=200}
+```{r,fig.width=10,fig.height=10,dpi=200, warning=FALSE}
 g1 <- train_data[, .(n = .N), by=channelGrouping] %>%
   ggplot(aes(x=reorder(channelGrouping, -n), y=n/1000)) +
   geom_bar(stat='identity', fill='steelblue') +
@@ -379,7 +413,7 @@ g1 / (g2+g3)
 
 We see that in terms of total revenue, “Referral” accounts for the largest share. “Display” had the highest average revenue, but be aware that this may be due to a particularly large transaction, as the number of visits from “Display” are very small.
 
-## Device Features
+## 3.4.Revenue by device
 ```{r,fig.width=5,fig.height=5,dpi=200}
 g1 <- train_data[, .(n=.N/1000), by=operatingSystem][
   n > 0.001
@@ -476,7 +510,7 @@ train_data %>%
 
 There seems to a smaller mean transaction revenue for mobile devices than non-mobile devices, although we’d want to perform some statistical testing to determine if this effect is statistically significant or just occuring by random chance in this particular sample.
 
-## Geographic Features
+## 3.5. Revenue by geographic features
 
 ```{r, fig.width=5,fig.height=5,dpi=200,warning=FALSE}
 train_data[, .(revenue = sum(transactionRevenue, na.rm=TRUE)/1000), by = continent][
@@ -539,7 +573,9 @@ map_by_continent(continent='Europe', map_path='custom/europe')
 
 ```
 
-Let’s now look at visits and revenue by network domain. Here I am going to extract the top-level domain from each entry in networkDomain and make it a separate column. I am excluding the NA data, which includes values that were once ‘(not set)’ and ‘unknown.unknown’; however keep in mind that a lot of the visits and transaction revenue in the data set come from unknown domains.
+
+## 3.6. Revenue by network domain
+Let’s now look at visits and revenue by network domain. Here we extract the top-level domain from each entry in networkDomain and make it a separate column. I am excluding the NA data, which includes values that were once ‘(not set)’ and ‘unknown.unknown’; however keep in mind that a lot of the visits and transaction revenue in the data set come from unknown domains.
 
 
 ```{r,fig.width=5,fig.height=5,dpi=200}
@@ -576,36 +612,7 @@ g2 <- train_data[!is.na(networkDomain), .(revenue = sum(transactionRevenue, na.r
 g2
 ```
 
-## Totals Features
-
-Let’s look at the behavior of users while on the site and look for anything that might be correlated with transaction revenue. Below are bivariate distribution plots of pageveiews vs transaction revenue, and hits vs transaction revenue.
-
-```{r, include=FALSE,fig.width=10,fig.height=5,dpi=200}
-g1 <- ggplot(train_data, aes(x=log(pageviews), y=log(transactionRevenue))) + 
-  geom_point(color='steelblue') +
-  geom_smooth(method='lm', color='orange') + 
-  labs( y='Transaction revenue (log)',
-    title='Pageviews vs transaction revenue',
-    subtitle='visit-level') + theme_minimal()
-  
-
-g2 <- ggplot(train_data, aes(x=log(hits), y=log(transactionRevenue))) + 
-  geom_point(color='steelblue') +
-  geom_smooth(method='lm', color='orange') + 
-  labs( y='Transaction revenue (log)',
-    title='Hits vs transaction revenue',
-    subtitle='visit-level') + theme_minimal()
-
-m1 <- ggMarginal(g1, type='histogram', fill='steelblue')
-m2 <- ggMarginal(g2, type='histogram', fill='steelblue')
-
-grid.arrange(m1, m2, nrow = 1, ncol = 2)
-
-```
-
-It’s hard to tell from the cloud of points whether there is relationship between hits and revenue and between pageviews and revenue. Fitting a linear model to the data indicate that there is some positive correlation between the two in both cases.
-
-## Traffic Source Features
+## 3.7.Revenue by traffic sources
 
 Let’s now turn to the traffic source data. ‘Medium’ in the general category of the source by which the visitor arrived at the site . Organic refers to an organic search. A cost-per-click paid search is labeled ‘cpc’. ‘Referral’ is a web referral.
 
@@ -633,17 +640,60 @@ g2 <- train_data[, .(revenue = sum(transactionRevenue, na.rm=TRUE)), by = medium
 g1 + g2
 ```
 
+# 4.Correlation analysis
 
-# Reference
+Correlation analysis is a statistical method used to evaluate the strength of relationship between two quantitative variables, so we need to select numeric features from our data.
 
-https://sebastiansauer.github.io/figure_sizing_knitr/
+```{r}
+numeric.train_data <- train_data[, .SD, .SDcols = sapply(train_data, is.numeric)]
 
-https://www.kaggle.com/captcalculator/a-very-extensive-gstore-exploratory-analysis
+kable(colnames(numeric.train_data), col.names="Feature Name:")
+```
 
-https://www.kaggle.com/mrlong/r-flatten-json-columns-to-make-single-data-frame
+And we know userId is not a 'real' feature, so they should be dropped. Besides newVisits and bounces are unique value feature(NA and 1), so it should be consider as a binary category feature after one-hot encoding, and ,thus, we remove it as well.
 
-https://uc-r.github.io/cleveland-dot-plots
+```{r}
+numeric.train_data[, c('fullVisitorId', 'visitId', 'newVisits', 'bounces') := NULL]
+```
 
-https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html
+Calculate their correlation matrix by Pearson's method.
 
-https://support.google.com/analytics/answer/6099206?hl=enodvcz
+```{r, message=FALSE, warning=FALSE,fig.width=10,fig.height=5,dpi=200}
+corr <- round(cor(numeric.train_data, use="pairwise.complete.obs"), 3)
+show(corr, caption = "Correlation Matrix of numeric features and revenue")
+ggcorrplot(corr, hc.order = TRUE, outline.col = "white")
+```
+
+
+## 4.Pageviews and Hits
+Pageviews and Hits are both the behaviors of users while on the site and look for anything, so it might be correlated with transaction revenue. Below are bivariate distribution plots of pageveiews versus transaction revenue, and hits versus transaction revenue.
+
+```{r, message=FALSE, warning=FALSE,fig.width=10,fig.height=5,dpi=200}
+g1 <- ggplot(train_data, aes(x=log(pageviews), y=log(transactionRevenue))) + 
+  geom_point(color='steelblue') +
+  geom_smooth(method='lm', color='orange') + 
+  labs( y='Transaction revenue (log)',
+    title='Pageviews vs transaction revenue',
+    subtitle='visit-level') + theme_minimal()
+  
+
+g2 <- ggplot(train_data, aes(x=log(hits), y=log(transactionRevenue))) + 
+  geom_point(color='steelblue') +
+  geom_smooth(method='lm', color='orange') + 
+  labs( y='Transaction revenue (log)',
+    title='Hits vs transaction revenue',
+    subtitle='visit-level') + theme_minimal()
+
+m1 <- ggMarginal(g1, type='histogram', fill='steelblue')
+m2 <- ggMarginal(g2, type='histogram', fill='steelblue')
+
+grid.arrange(m1, m2, nrow = 1, ncol = 2)
+
+```
+
+It seems like they do have a positive correlation. It’s not that easy to tell from the cloud of points whether there is relationship between hits and revenue and between pageviews and revenue. For the next step, we will fit a linear model to the data indicate that there is some positive correlation between the two in both cases. 
+
+In terms of further work, we will employ some techniques of feature engineering, such as bucketing, missing data imputation, feature selection and feature construction. Also, we will employ statistical regression methods, such as lasso, elastic net regression and other machine learning methods. 
+
+
+
